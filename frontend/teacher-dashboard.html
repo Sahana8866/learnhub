@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LearnHub - Teacher Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="dashboard-header">
+            <div class="header-left">
+                <h1>🎓 LearnHub</h1>
+                <span class="user-info">Teacher Dashboard</span>
+            </div>
+            <div class="header-right">
+                <span id="teacherName">Loading...</span>
+                <button class="btn btn-logout" onclick="logout()">Logout</button>
+            </div>
+        </header>
+        
+        <nav class="dashboard-nav">
+            <button class="nav-btn active" onclick="showTeacherSection('postAssignment')">📝 Post Assignment</button>
+            <button class="nav-btn" onclick="showTeacherSection('viewSubmissions')">📥 Submissions</button>
+            <button class="nav-btn" onclick="showTeacherSection('postAnnouncement')">📢 Announcements</button>
+            <button class="nav-btn" onclick="showTeacherSection('gradeAssignments')">📊 Grade Assignments</button>
+            <button class="nav-btn" onclick="showTeacherSection('teacherMessages')">💬 Messages</button>
+        </nav>
+        
+        <main class="dashboard-main">
+            <!-- Post Assignment Section -->
+            <div id="postAssignmentSection" class="dashboard-section">
+                <h2>Post New Assignment</h2>
+                <div class="form-card">
+                    <div class="form-group">
+                        <label>Assignment Title:</label>
+                        <input type="text" id="assignmentTitle" placeholder="Enter assignment title">
+                    </div>
+                    <div class="form-group">
+                        <label>Description:</label>
+                        <textarea id="assignmentDescription" placeholder="Enter assignment description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Due Date:</label>
+                        <input type="date" id="assignmentDueDate">
+                    </div>
+                    <div class="form-group">
+                        <label>Maximum Marks:</label>
+                        <input type="number" id="assignmentMaxMarks" placeholder="100">
+                    </div>
+                    <button class="btn btn-primary" onclick="postAssignment()">Post Assignment</button>
+                </div>
+                
+                <h3>My Posted Assignments</h3>
+                <div id="postedAssignments" class="card-container">
+                    <p>Loading your assignments...</p>
+                </div>
+            </div>
+            
+            <!-- View Submissions Section -->
+            <div id="viewSubmissionsSection" class="dashboard-section hidden">
+                <h2>Student Submissions</h2>
+                <div id="submissionsList" class="card-container">
+                    <p>Loading submissions...</p>
+                </div>
+            </div>
+            
+            <!-- Post Announcement Section -->
+            <div id="postAnnouncementSection" class="dashboard-section hidden">
+                <h2>Post Announcement</h2>
+                <div class="form-card">
+                    <div class="form-group">
+                        <label>Announcement Title:</label>
+                        <input type="text" id="announcementTitle" placeholder="Enter title">
+                    </div>
+                    <div class="form-group">
+                        <label>Message:</label>
+                        <textarea id="announcementMessage" placeholder="Enter announcement message"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="postAnnouncement()">Post Announcement</button>
+                </div>
+                
+                <h3>Previous Announcements</h3>
+                <div id="announcementsHistory" class="card-container">
+                    <p>Loading announcements...</p>
+                </div>
+            </div>
+            
+            <!-- Grade Assignments Section -->
+            <!-- In the Grade Assignments section -->
+        <div id="gradeAssignmentsSection" class="dashboard-section hidden">
+            <h2>Grade Assignments</h2>
+            <div class="filter-options">
+                <button class="btn-small" onclick="filterUngraded()">Show Ungraded</button>
+                <button class="btn-small" onclick="filterAll()">Show All</button>
+            </div>
+            <div id="ungradedSubmissions" class="card-container">
+                <p>Loading submissions...</p>
+            </div>
+        </div>
+            
+            <!-- Messages Section -->
+            <div id="teacherMessagesSection" class="dashboard-section hidden">
+                <h2>Messages</h2>
+                <div class="messages-container">
+                    <div class="message-list">
+                        <h3>Students</h3>
+                        <div id="studentList">
+                            <p>Loading students...</p>
+                        </div>
+                    </div>
+                    <div class="message-conversation">
+                        <div class="conversation-header">
+                            <h3 id="teacherCurrentChat">Select a student to message</h3>
+                        </div>
+                        <div id="teacherMessageHistory" class="message-history">
+                            <p>No messages yet.</p>
+                        </div>
+                        <div class="message-input">
+                            <textarea id="teacherMessageText" placeholder="Type your message here..."></textarea>
+                            <button class="btn btn-primary" onclick="sendTeacherMessage()">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>

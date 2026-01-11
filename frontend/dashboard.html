@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LearnHub - Student Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="dashboard-header">
+            <div class="header-left">
+                <h1>🎓 LearnHub</h1>
+                <span class="user-info">Student Dashboard</span>
+            </div>
+            <div class="header-right">
+                <span id="studentName">Loading...</span>
+                <button class="btn btn-logout" onclick="logout()">Logout</button>
+            </div>
+        </header>
+        
+        <nav class="dashboard-nav">
+            <button class="nav-btn active" onclick="showSection('assignments')">📚 Assignments</button>
+            <button class="nav-btn" onclick="showSection('announcements')">📢 Announcements</button>
+            <button class="nav-btn" onclick="showSection('grades')">📊 Grades</button>
+            <button class="nav-btn" onclick="showSection('messages')">💬 Messages</button>
+        </nav>
+        
+        <main class="dashboard-main">
+            <!-- Assignments Section -->
+            <div id="assignmentsSection" class="dashboard-section">
+                <h2>My Assignments</h2>
+                <div id="assignmentsList" class="card-container">
+                    <p>Loading assignments...</p>
+                </div>
+                
+                <!-- Replace the assignment submission section -->
+                <!-- In dashboard.html, replace from line 53 onward -->
+                <div class="assignment-submit">
+                    <h3>Submit Assignment</h3>
+                    <div class="form-group">
+                        <label>Select Assignment:</label>
+                        <select id="assignmentSelect" class="form-control">
+                            <option value="">Select an assignment</option>
+                        </select>
+                    </div>
+                    <!-- <div class="form-group">
+                        <label>Submission Text (Optional):</label>
+                        <textarea id="submissionText" class="form-control" placeholder="Enter your submission text here..." rows="4"></textarea>
+                    </div> -->
+                    <div class="form-group">
+                        <label>Upload PDF File (Max 5MB):</label>
+                        <div class="file-upload-container">
+                            <div class="file-upload-box" onclick="document.getElementById('pdfFile').click()">
+                                <div class="upload-icon">📁</div>
+                                <div class="upload-text">Click to upload file</div>
+                                <!-- <div class="upload-hint">or drag and drop</div> -->
+                                <input type="file" id="pdfFile" name="pdfFile" accept=".pdf" style="display: none;" onchange="handleFileSelect()">
+                            </div>
+                            <div id="fileInfo" class="file-info" style="display: none;">
+                                <div class="file-details">
+                                    <span id="fileNameDisplay"></span>
+                                    <span id="fileSize"></span>
+                                </div>
+                                <button type="button" class="btn-remove" onclick="removeSelectedFile()">✕</button>
+                            </div>
+                            <div id="filePreviewContainer" class="file-preview-container" style="display: none;">
+                                <embed id="pdfPreview" width="100%" height="300px" type="application/pdf">
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="submitAssignmentWithFile()">Submit Assignment</button>
+                    <div id="uploadProgress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div id="progressText" class="progress-text">Uploading...</div>
+                    </div>
+                </div>
+                </div>
+            <!-- Announcements Section -->
+            <div id="announcementsSection" class="dashboard-section hidden">
+                <h2>Announcements</h2>
+                <div id="announcementsList" class="card-container">
+                    <p>Loading announcements...</p>
+                </div>
+            </div>
+            
+            <!-- Grades Section -->
+            <div id="gradesSection" class="dashboard-section hidden">
+                <h2>My Grades</h2>
+                <div id="gradesList" class="card-container">
+                    <p>Loading grades...</p>
+                </div>
+            </div>
+            
+            <!-- Messages Section -->
+            <div id="messagesSection" class="dashboard-section hidden">
+                <h2>Messages</h2>
+                <div class="messages-container">
+                    <div class="message-list">
+                        <h3>Teachers</h3>
+                        <div id="teacherList">
+                            <p>Loading teachers...</p>
+                        </div>
+                    </div>
+                    <div class="message-conversation">
+                        <div class="conversation-header">
+                            <h3 id="currentChat">Select a teacher to message</h3>
+                        </div>
+                        <div id="messageHistory" class="message-history">
+                            <p>No messages yet.</p>
+                        </div>
+                        <div class="message-input">
+                            <textarea id="messageText" placeholder="Type your message here..."></textarea>
+                            <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
