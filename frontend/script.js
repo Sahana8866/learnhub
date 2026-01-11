@@ -1,6 +1,11 @@
 // API Base URL - for local testing
-const API_BASE_URL = 'http://localhost:3000/api';
+//const API_BASE_URL = 'http://localhost:3000/api';
 
+// Replace the first line in script.js:
+const API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:3000/api' 
+    : window.location.origin + '/api';
+    
 // Tab switching for login/register
 const loginTab = document.getElementById('loginTab');
 const registerTab = document.getElementById('registerTab');
