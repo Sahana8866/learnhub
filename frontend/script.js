@@ -790,13 +790,14 @@ async function loadSubmissions() {
             }
             
             // Add PDF file link if available
+            // In loadSubmissions() function:
             if (submission.pdfFile) {
-                const pdfUrl = `http://localhost:3000/uploads/${submission.pdfFile}`;
+                const pdfUrl = `/api/pdf/${submission.pdfFile}`;
                 cardContent += `
                     <div class="file-link-container">
                         <p><strong>PDF Submission:</strong></p>
                         <a href="${pdfUrl}" target="_blank" class="file-link">
-                            📄 ${submission.pdfFile}
+                            📄 View PDF
                         </a>
                     </div>
                 `;

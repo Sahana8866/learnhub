@@ -1,7 +1,8 @@
 // ============================================
-// LEARNHUB - FINAL WORKING VERSION
+// LEARNHUB - FINAL WORKING VERSION WITH GRIDFS
 // ============================================
 
+const { GridFSBucket, ObjectId } = require('mongodb');
 // Update these lines at the top of server.js:
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rsahana8310_db_user:zHjcM3OH7wmEgdZx@cluster0.unmwb5r.mongodb.net/learnhub?retryWrites=true&w=majority';
 const JWT_SECRET = process.env.JWT_SECRET || 'learnhub_secret_key_2024_secure_123';
@@ -35,37 +36,18 @@ app.use(express.urlencoded({ extended: true }));
 // Serve frontend files
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Create uploads directory
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadsDir);
-    },
-    filename: function (req, file, cb) {
-        const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
-        cb(null, uniqueName);
+// Configure multer for file uploads (MEMORY STORAGE FOR GRIDFS)
+const upload = multer({
+  storage: multer.memoryStorage(), // Store file in memory for GridFS
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: function (req, file, cb) {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'), false);
     }
+  }
 });
-
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: function (req, file, cb) {
-        if (file.mimetype === 'application/pdf') {
-            cb(null, true);
-        } else {
-            cb(new Error('Only PDF files are allowed'), false);
-        }
-    }
-});
-
-// Serve uploaded files
-app.use('/uploads', express.static(uploadsDir));
 
 // ============ DATABASE CONNECTION ============
 
@@ -75,6 +57,7 @@ mongoose.connect(MONGODB_URI, {
 })
 .then(() => {
     console.log('✅ MongoDB Atlas connected successfully!');
+    console.log('📁 Using GridFS for file storage');
 })
 .catch(err => {
     console.error('❌ MongoDB connection error:', err.message);
@@ -108,7 +91,7 @@ const submissionSchema = new mongoose.Schema({
     assignmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Assignment', required: true },
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     submission: { type: String, default: '' },
-    pdfFile: { type: String },
+    pdfFile: { type: String }, // Will store GridFS file ID as string
     grade: { type: Number },
     submittedAt: { type: Date, default: Date.now },
     gradedAt: { type: Date }
@@ -298,7 +281,7 @@ app.get('/api/assignments', authenticateToken, async (req, res) => {
     }
 });
 
-// 5. SUBMIT ASSIGNMENT (WITH FILE UPLOAD)
+// 5. SUBMIT ASSIGNMENT (WITH GRIDFS FILE UPLOAD)
 app.post('/api/submit-assignment', authenticateToken, upload.single('pdfFile'), async (req, res) => {
     try {
         if (req.user.role !== 'student') {
@@ -306,12 +289,12 @@ app.post('/api/submit-assignment', authenticateToken, upload.single('pdfFile'), 
         }
         
         const assignmentId = req.body.assignmentId;
-        const submission = req.body.submission;
-        const pdfFile = req.file ? req.file.filename : null;
+        const submissionText = req.body.submission;
+        const file = req.file;
         
-        console.log('📤 Submission:', { assignmentId, hasText: !!submission, hasFile: !!pdfFile });
+        console.log('📤 Submission:', { assignmentId, hasText: !!submissionText, hasFile: !!file });
         
-        if (!assignmentId || (!submission && !pdfFile)) {
+        if (!assignmentId || (!submissionText && !file)) {
             return res.status(400).json({ error: 'Assignment ID and either submission text or PDF file is required' });
         }
         
@@ -320,44 +303,133 @@ app.post('/api/submit-assignment', authenticateToken, upload.single('pdfFile'), 
             return res.status(404).json({ error: 'Assignment not found' });
         }
         
+        let fileId = null;
+        
+        // If file uploaded, store in GridFS
+        if (file) {
+            console.log('📁 Uploading file to GridFS:', file.originalname, file.size, 'bytes');
+            
+            const bucket = new GridFSBucket(mongoose.connection.db, {
+                bucketName: 'pdfs'
+            });
+            
+            // Create unique filename with timestamp
+            const uniqueFilename = `${Date.now()}-${file.originalname}`;
+            
+            const uploadStream = bucket.openUploadStream(uniqueFilename, {
+                contentType: file.mimetype,
+                metadata: {
+                    originalName: file.originalname,
+                    uploadedBy: req.user.userId,
+                    uploadedAt: new Date()
+                }
+            });
+            
+            fileId = uploadStream.id;
+            
+            // Upload the file
+            uploadStream.end(file.buffer);
+            
+            // Wait for upload to complete
+            await new Promise((resolve, reject) => {
+                uploadStream.on('finish', () => {
+                    console.log('✅ File uploaded to GridFS with ID:', fileId);
+                    resolve();
+                });
+                uploadStream.on('error', (error) => {
+                    console.error('❌ GridFS upload error:', error);
+                    reject(error);
+                });
+            });
+        }
+        
+        // Check for existing submission
         const existingSubmission = await Submission.findOne({
             assignmentId,
             studentId: req.user.userId
         });
         
         if (existingSubmission) {
-            existingSubmission.submission = submission || existingSubmission.submission;
-            existingSubmission.pdfFile = pdfFile || existingSubmission.pdfFile;
+            existingSubmission.submission = submissionText || existingSubmission.submission;
+            existingSubmission.pdfFile = fileId ? fileId.toString() : existingSubmission.pdfFile;
             existingSubmission.submittedAt = new Date();
             await existingSubmission.save();
             
-            return res.json({ message: 'Assignment updated successfully' });
+            return res.json({ 
+                message: 'Assignment updated successfully',
+                fileId: fileId ? fileId.toString() : null
+            });
         }
         
+        // Create new submission
         const newSubmission = new Submission({
             assignmentId,
             studentId: req.user.userId,
-            submission: submission || '',
-            pdfFile: pdfFile || null
+            submission: submissionText || '',
+            pdfFile: fileId ? fileId.toString() : null
         });
         
         await newSubmission.save();
         
-        res.json({ message: 'Assignment submitted successfully' });
+        res.json({ 
+            message: 'Assignment submitted successfully',
+            fileId: fileId ? fileId.toString() : null
+        });
     } catch (error) {
         console.error('Submit assignment error:', error);
-        
-        if (req.file && req.file.path) {
-            fs.unlink(req.file.path, (err) => {
-                if (err) console.error('Error deleting file:', err);
-            });
-        }
-        
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ error: 'Server error: ' + error.message });
     }
 });
 
-// 6. GET TEACHER'S ASSIGNMENTS
+// 6. GET PDF FILE FROM GRIDFS (NO AUTH REQUIRED FOR VIEWING)
+app.get('/api/pdf/:fileId', async (req, res) => {
+    try {
+        const { fileId } = req.params;
+        
+        console.log('📥 Requesting PDF with ID:', fileId);
+        
+        // Validate fileId is a valid ObjectId
+        if (!ObjectId.isValid(fileId)) {
+            return res.status(400).json({ error: 'Invalid file ID format' });
+        }
+        
+        const bucket = new GridFSBucket(mongoose.connection.db, {
+            bucketName: 'pdfs'
+        });
+        
+        // First check if file exists
+        const files = await bucket.find({ _id: new ObjectId(fileId) }).toArray();
+        if (files.length === 0) {
+            return res.status(404).json({ error: 'PDF file not found' });
+        }
+        
+        const file = files[0];
+        console.log('📄 Serving PDF:', file.filename, file.length, 'bytes');
+        
+        // Set headers
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${file.filename}"`);
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        
+        // Stream the file
+        const downloadStream = bucket.openDownloadStream(new ObjectId(fileId));
+        
+        downloadStream.pipe(res);
+        
+        downloadStream.on('error', (error) => {
+            console.error('❌ Error streaming PDF:', error);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Error streaming file' });
+            }
+        });
+        
+    } catch (error) {
+        console.error('Get PDF error:', error);
+        res.status(500).json({ error: 'Server error: ' + error.message });
+    }
+});
+
+// 7. GET TEACHER'S ASSIGNMENTS
 app.get('/api/teacher/assignments', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'teacher') {
@@ -391,7 +463,7 @@ app.get('/api/teacher/assignments', authenticateToken, async (req, res) => {
     }
 });
 
-// 7. GET SUBMISSIONS
+// 8. GET SUBMISSIONS
 app.get('/api/teacher/submissions', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'teacher') {
@@ -417,7 +489,7 @@ app.get('/api/teacher/submissions', authenticateToken, async (req, res) => {
     }
 });
 
-// 8. CREATE ANNOUNCEMENT
+// 9. CREATE ANNOUNCEMENT
 app.post('/api/create-announcement', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'teacher') {
@@ -449,7 +521,7 @@ app.post('/api/create-announcement', authenticateToken, async (req, res) => {
     }
 });
 
-// 9. GET ANNOUNCEMENTS
+// 10. GET ANNOUNCEMENTS
 app.get('/api/announcements', authenticateToken, async (req, res) => {
     try {
         const announcements = await Announcement.find()
@@ -464,7 +536,7 @@ app.get('/api/announcements', authenticateToken, async (req, res) => {
     }
 });
 
-// 10. GET TEACHERS
+// 11. GET TEACHERS
 app.get('/api/teachers', authenticateToken, async (req, res) => {
     try {
         const teachers = await User.find({ role: 'teacher' }).select('name email');
@@ -475,7 +547,7 @@ app.get('/api/teachers', authenticateToken, async (req, res) => {
     }
 });
 
-// 11. GET STUDENTS
+// 12. GET STUDENTS
 app.get('/api/students', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'teacher') {
@@ -490,7 +562,7 @@ app.get('/api/students', authenticateToken, async (req, res) => {
     }
 });
 
-// 12. SEND MESSAGE
+// 13. SEND MESSAGE
 app.post('/api/send-message', authenticateToken, async (req, res) => {
     try {
         const { receiverId, message } = req.body;
@@ -510,7 +582,7 @@ app.post('/api/send-message', authenticateToken, async (req, res) => {
     }
 });
 
-// 13. GET MESSAGES
+// 14. GET MESSAGES
 app.get('/api/messages/:userId', authenticateToken, async (req, res) => {
     try {
         const { userId } = req.params;
@@ -531,8 +603,7 @@ app.get('/api/messages/:userId', authenticateToken, async (req, res) => {
     }
 });
 
-// 14. GRADE ASSIGNMENT
-// 14. GRADE ASSIGNMENT - FIXED VERSION
+// 15. GRADE ASSIGNMENT
 app.post('/api/grade-submission', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'teacher') {
@@ -561,14 +632,14 @@ app.post('/api/grade-submission', authenticateToken, async (req, res) => {
             return res.status(403).json({ error: 'Not authorized to grade this submission' });
         }
         
-        // ✅ FIX: Validate grade is not more than maxMarks
+        // Validate grade is not more than maxMarks
         if (gradeNum > assignment.maxMarks) {
             return res.status(400).json({ 
                 error: `Grade cannot exceed maximum marks (${assignment.maxMarks})` 
             });
         }
         
-        // ✅ FIX: Validate grade is not negative
+        // Validate grade is not negative
         if (gradeNum < 0) {
             return res.status(400).json({ 
                 error: 'Grade cannot be negative' 
@@ -591,7 +662,7 @@ app.post('/api/grade-submission', authenticateToken, async (req, res) => {
     }
 });
 
-// 15. GET GRADES
+// 16. GET GRADES
 app.get('/api/grades', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'student') {
@@ -619,7 +690,7 @@ app.get('/api/grades', authenticateToken, async (req, res) => {
     }
 });
 
-// 16. HEALTH CHECK
+// 17. HEALTH CHECK
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
@@ -628,15 +699,31 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// 18. SERVE FRONTEND PAGES
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
+
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/login.html'));
+});
+
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dashboard.html'));
+});
+
+app.get('/teacher-dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/teacher-dashboard.html'));
+});
+
 // ============ START SERVER ============
 
-// Change the app.listen line to:
 app.listen(PORT, '0.0.0.0', () => {
     console.log('\n' + '='.repeat(50));
     console.log('🎓 LEARNHUB - Student-Teacher Portal');
     console.log('='.repeat(50));
     console.log(`✅ Server running on port ${PORT}`);
-    console.log(`📁 Uploads directory: ${uploadsDir}`);
+    console.log('📁 Using MongoDB GridFS for file storage');
     console.log('🌐 Application is ready!');
     console.log('='.repeat(50));
 });
