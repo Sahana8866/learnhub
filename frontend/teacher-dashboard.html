@@ -25,6 +25,7 @@
             <button class="nav-btn" onclick="showTeacherSection('postAnnouncement')">📢 Announcements</button>
             <button class="nav-btn" onclick="showTeacherSection('gradeAssignments')">📊 Grade Assignments</button>
             <button class="nav-btn" onclick="showTeacherSection('teacherMessages')">💬 Messages</button>
+            <button class="nav-btn" onclick="showTeacherSection('studentProgress')">📈 Student Progress</button>
         </nav>
         
         <main class="dashboard-main">
@@ -126,6 +127,31 @@
         </main>
     </div>
     
+    <!-- Add this new section at the bottom of dashboard-main -->
+<div id="studentProgressSection" class="dashboard-section hidden">
+    <h2>Student Progress Tracker</h2>
+    <div class="filter-options">
+        <button class="btn-small" onclick="loadStudentProgress()">Refresh</button>
+        <button class="btn-small" onclick="exportProgressData()">Export as CSV</button>
+    </div>
+    <div class="progress-table-container">
+        <table class="progress-table">
+            <thead>
+                <tr>
+                    <th>Student Name</th>
+                    <th>Email</th>
+                    <th>Submitted</th>
+                    <th>Total Assignments</th>
+                    <th>Progress</th>
+                    <th>Avg Grade</th>
+                </tr>
+            </thead>
+            <tbody id="studentProgressTable">
+                <tr><td colspan="6" class="loading-text">Loading progress data...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
     <script src="script.js"></script>
 </body>
 </html>

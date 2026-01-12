@@ -144,7 +144,28 @@ function showTeacherSection(sectionId) {
     
     event.target.classList.add('active');
     document.getElementById(sectionId + 'Section').classList.remove('hidden');
-    loadTeacherDashboardData(sectionId);
+    
+    // Load data for the section
+    switch(sectionId) {
+        case 'postAssignment':
+            loadPostedAssignments();
+            break;
+        case 'viewSubmissions':
+            loadSubmissions();
+            break;
+        case 'postAnnouncement':
+            loadAnnouncementsHistory();
+            break;
+        case 'gradeAssignments':
+            loadUngradedSubmissions();
+            break;
+        case 'teacherMessages':
+            loadStudents();
+            break;
+        case 'studentProgress':
+            loadStudentProgress();
+            break;
+    }
 }
 
 // Load Student Dashboard Data
@@ -1469,6 +1490,237 @@ async function gradeSubmission(submissionId) {
         alert('Network error. Please try again.');
     }
 }
+
+// ============ STUDENT PROGRESS FUNCTIONS ============
+
+// Load Student Progress
+async function loadStudentProgress() {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        // Show loading state
+        const tableBody = document.getElementById('studentProgressTable');
+        tableBody.innerHTML = '<tr><td colspan="6" class="loading-text">Loading progress data...</td></tr>';
+
+        // Get all students
+        const studentsRes = await fetch(`${API_BASE_URL}/students`, {
+            headers: { 
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (studentsRes.status === 401) {
+            window.location.href = 'login.html';
+            return;
+        }
+        
+        const students = await studentsRes.json();
+        
+        // Get all assignments (teacher's assignments only)
+        const assignmentsRes = await fetch(`${API_BASE_URL}/teacher/assignments`, {
+            headers: { 
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const assignments = await assignmentsRes.json();
+        const totalAssignments = assignments.length;
+        
+        // Get all submissions
+        const submissionsRes = await fetch(`${API_BASE_URL}/teacher/submissions`, {
+            headers: { 
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const allSubmissions = await submissionsRes.json();
+        
+        // Clear and populate table
+        tableBody.innerHTML = '';
+        
+        if (!students || students.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="6">No students found</td></tr>';
+            return;
+        }
+        
+        if (totalAssignments === 0) {
+            tableBody.innerHTML = '<tr><td colspan="6">No assignments posted yet. Post assignments first to track progress.</td></tr>';
+            return;
+        }
+        
+        // Calculate progress for each student
+        students.forEach(student => {
+            // Filter submissions for this student
+            const studentSubmissions = allSubmissions.filter(sub => 
+                sub.studentId && sub.studentId._id === student._id
+            );
+            
+            const submittedCount = studentSubmissions.length;
+            const progressPercentage = totalAssignments > 0 ? 
+                Math.round((submittedCount / totalAssignments) * 100) : 0;
+            
+            // Calculate average grade
+            const gradedSubmissions = studentSubmissions.filter(sub => sub.grade && sub.grade > 0);
+            let avgGrade = 'N/A';
+            let avgGradeClass = '';
+            
+            if (gradedSubmissions.length > 0) {
+                const totalGrade = gradedSubmissions.reduce((sum, sub) => sum + sub.grade, 0);
+                avgGrade = Math.round((totalGrade / gradedSubmissions.length) * 10) / 10;
+                
+                // Add color class based on average grade
+                if (avgGrade >= 80) avgGradeClass = 'progress-excellent';
+                else if (avgGrade >= 60) avgGradeClass = 'progress-good';
+                else if (avgGrade >= 40) avgGradeClass = 'progress-fair';
+                else avgGradeClass = 'progress-poor';
+            }
+            
+            // Add color class for progress percentage
+            let progressClass = '';
+            if (progressPercentage >= 80) progressClass = 'progress-excellent';
+            else if (progressPercentage >= 60) progressClass = 'progress-good';
+            else if (progressPercentage >= 40) progressClass = 'progress-fair';
+            else if (progressPercentage > 0) progressClass = 'progress-poor';
+            
+            // Create table row
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${student.name}</strong></td>
+                <td>${student.email}</td>
+                <td>${submittedCount}</td>
+                <td>${totalAssignments}</td>
+                <td>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" style="width: ${progressPercentage}%"></div>
+                    </div>
+                    <span class="progress-percentage ${progressClass}">${progressPercentage}%</span>
+                </td>
+                <td class="${avgGradeClass}">
+                    ${avgGrade}
+                    ${avgGrade !== 'N/A' ? '/100' : ''}
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
+        
+        // Add summary row
+        const summaryRow = document.createElement('tr');
+        summaryRow.style.backgroundColor = '#f8f9fa';
+        summaryRow.style.fontWeight = 'bold';
+        
+        const totalStudents = students.length;
+        const totalSubmissions = allSubmissions.length;
+        const totalPossible = totalStudents * totalAssignments;
+        const overallProgress = totalPossible > 0 ? Math.round((totalSubmissions / totalPossible) * 100) : 0;
+        
+        summaryRow.innerHTML = `
+            <td><strong>Class Summary</strong></td>
+            <td>${totalStudents} students</td>
+            <td>${totalSubmissions}</td>
+            <td>${totalPossible}</td>
+            <td>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" style="width: ${overallProgress}%"></div>
+                </div>
+                <span class="progress-percentage">${overallProgress}%</span>
+            </td>
+            <td>--</td>
+        `;
+        tableBody.appendChild(summaryRow);
+        
+    } catch (error) {
+        console.error('Error loading student progress:', error);
+        const tableBody = document.getElementById('studentProgressTable');
+        tableBody.innerHTML = '<tr><td colspan="6" class="error">Error loading progress data. Please try again.</td></tr>';
+    }
+}
+
+// Export Progress Data as CSV
+function exportProgressData() {
+    try {
+        const rows = [];
+        const headers = ['Student Name', 'Email', 'Submitted Count', 'Total Assignments', 'Progress %', 'Average Grade'];
+        
+        // Get table data (skip the last summary row)
+        const tableRows = document.querySelectorAll('#studentProgressTable tr');
+        
+        if (tableRows.length <= 1) {
+            alert('No data to export. Please load progress data first.');
+            return;
+        }
+        
+        tableRows.forEach((row, index) => {
+            // Skip if it's the summary row (usually last row)
+            if (index === tableRows.length - 1) return;
+            
+            const cols = row.querySelectorAll('td');
+            if (cols.length >= 6) {
+                // Extract clean data from cells
+                const studentName = cols[0].textContent.trim();
+                const email = cols[1].textContent.trim();
+                const submitted = cols[2].textContent.trim();
+                const total = cols[3].textContent.trim();
+                
+                // Extract percentage (remove % sign)
+                const progressText = cols[4].querySelector('.progress-percentage')?.textContent || '0%';
+                const progress = progressText.replace('%', '');
+                
+                // Extract average grade (remove /100 if present)
+                let avgGrade = cols[5].textContent.trim();
+                avgGrade = avgGrade.replace('/100', '');
+                
+                const rowData = [
+                    `"${studentName}"`,  // Wrap in quotes for CSV
+                    `"${email}"`,
+                    submitted,
+                    total,
+                    progress,
+                    avgGrade
+                ];
+                rows.push(rowData.join(','));
+            }
+        });
+        
+        if (rows.length === 0) {
+            alert('No data available to export.');
+            return;
+        }
+        
+        // Create CSV content
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        
+        // Create download link
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `student-progress-${new Date().toISOString().slice(0,10)}.csv`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Show success message
+        alert(`✅ Exported ${rows.length} student records successfully!\n\nFile: ${link.download}`);
+        
+    } catch (error) {
+        console.error('Export error:', error);
+        alert('❌ Failed to export data. Please try again.');
+    }
+}
+
+// Add this to the showTeacherSection function (if not already there):
+// In the switch statement of showTeacherSection, add:
+// case 'studentProgress':
+//     loadStudentProgress();
+//     break;
 
 // Add some CSS for error messages
 const style = document.createElement('style');
