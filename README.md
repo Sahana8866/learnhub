@@ -62,5 +62,7 @@ A comprehensive web platform for managing student–teacher interactions, assign
 * Deployed on Render.com
 * Database hosted on MongoDB Atlas
 * Frontend served statically from the backend server
+* Application available at https://learnhub-pnm3.onrender.com
+
 
 
